@@ -1,10 +1,10 @@
-from peewee import SqliteDatabase, Model, CharField, FloatField
+from peewee import SqliteDatabase, Model, CharField, FloatField, CompositeKey
 
 db = SqliteDatabase("./data/dataset.sqlite3")
 
 
 class StockCandleData(Model):
-    stock_symbol = CharField()
+    symbol = CharField()
     timestamp = CharField()
 
     open_price = FloatField()
@@ -14,6 +14,7 @@ class StockCandleData(Model):
 
     class Meta:
         database = db
+        primary_key = CompositeKey("symbol", "timestamp")
 
 
 def connect() -> SqliteDatabase:

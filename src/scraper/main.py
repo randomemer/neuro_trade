@@ -1,46 +1,104 @@
 import os
-from datetime import datetime
+from typing import Any, Dict, List
 
-from alpaca.data import MostActivesRequest, StockBarsRequest, TimeFrame
-from alpaca.data.historical import StockHistoricalDataClient
+import database
+import requests
+from alpaca.data import MostActivesRequest
 from alpaca.data.historical.screener import ScreenerClient
+from database import StockCandleData
 from dotenv import load_dotenv
+from ratelimiter import RateLimiter
 
 load_dotenv()
 
 api_key = os.getenv("ALPACA_API_KEY")
 secret_key = os.getenv("ALPACA_SECRET_KEY")
 
-
-def get_top_stocks(count: int):
-    """Get the top stocks by volume of trade"""
-    client = ScreenerClient(api_key, secret_key)
-
-    request = MostActivesRequest(top=count)
-    return client.get_most_actives(request)
+rate_limiter = RateLimiter(200, 60)
 
 
-def fetch_stock_history(symbol: str):
-    """Fetch historical data for a given symbol"""
-    stock_client = StockHistoricalDataClient(api_key, secret_key)
+class AlpacaScraper:
+    BASE_URL = "https://data.alpaca.markets/v2"
 
-    request = StockBarsRequest(
-        symbol_or_symbols=symbol,
-        limit=10_000,
-        timeframe=TimeFrame(5, TimeFrame.Minute),
-        start=datetime(2015, 1, 1),
-    )
-    resp = stock_client.get_stock_bars(request)
+    headers = {
+        "accept": "application/json",
+        "APCA-API-KEY-ID": api_key,
+        "APCA-API-SECRET-KEY": secret_key,
+    }
 
-    return resp
+    def get_top_stocks(self, count: int):
+        """Get the top stocks by volume of trade"""
+        with rate_limiter:
+            client = ScreenerClient(api_key, secret_key)
+            request = MostActivesRequest(top=count)
+
+            return client.get_most_actives(request)
+
+    def fetch_stock_history(
+        self, symbol: str, page_token: str | None
+    ) -> Dict[str, Any]:
+        """Fetch historical data for a given symbol"""
+        params = {
+            "timeframe": "5Min",
+            "start": "2015-01-01",
+            "limit": 10_000,
+            "page_token": page_token,
+        }
+
+        with rate_limiter:
+            resp = requests.get(
+                f"{self.BASE_URL}/stocks/{symbol}/bars",
+                headers=self.headers,
+                params=params,
+            )
+
+            return resp.json()
+
+    def save_bars_database(self, bars: List[Dict[str, Any]]):
+        # Save to sqlite db
+        models = []
+        for bar in bars:
+            candle = StockCandleData(
+                symbol=symbol,
+                timestamp=bar["t"],
+                open_price=bar["o"],
+                high_price=bar["h"],
+                low_price=bar["l"],
+                close_price=bar["c"],
+            )
+            models.append(candle)
+
+        with db.atomic():
+            StockCandleData.bulk_create(models, batch_size=100)
 
 
 if __name__ == "__main__":
+    scraper = AlpacaScraper()
+    db = database.connect()
+
     # Get top 50 most active stocks
-    symbols = get_top_stocks(50)
+    symbols = scraper.get_top_stocks(50)
+    print("Fetched 50 stocks by volume\n")
 
+    # Get all candlestick data for 5 Min intervals since 2015
     for stock in symbols.most_actives:
-        pass
+        symbol = stock.symbol
+        bars = []
 
-    h = fetch_stock_history(symbols.most_actives[0].symbol)
-    print(h["CYTO"])
+        # Fetch candlesticks for this stock
+        res = None
+        while True:
+            page_token = res["next_page_token"] if res else None
+            res = scraper.fetch_stock_history(symbol, page_token)
+
+            bars.extend(res["bars"])
+
+            if not res or not res["next_page_token"]:
+                break
+
+            print(f"{symbol} : Fetched candles till {bars[-1]['t']}")
+
+        scraper.save_bars_database(bars)
+        print(f"{symbol} : Added {len(bars)} candlesticks to database\n")
+
+    print("Completed scraping job")
