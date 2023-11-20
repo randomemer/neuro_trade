@@ -81,7 +81,7 @@ if __name__ == "__main__":
     print("Fetched 50 stocks by volume\n")
 
     # Get all candlestick data for 5 Min intervals since 2015
-    for stock in symbols.most_actives:
+    for i, stock in enumerate(symbols.most_actives):
         symbol = stock.symbol
         bars = []
 
@@ -96,9 +96,9 @@ if __name__ == "__main__":
             if not res or not res["next_page_token"]:
                 break
 
-            print(f"{symbol} : Fetched candles till {bars[-1]['t']}")
+            print(f"({i+1}/50) {symbol} : Fetched candles till {bars[-1]['t']}")
 
         scraper.save_bars_database(bars)
-        print(f"{symbol} : Added {len(bars)} candlesticks to database\n")
+        print(f"({i+1}/50) {symbol} : Added {len(bars)} candlesticks to database\n")
 
     print("Completed scraping job")
