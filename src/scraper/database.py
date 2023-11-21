@@ -3,8 +3,10 @@ import os
 from peewee import CharField, CompositeKey, FloatField, Model, SqliteDatabase
 
 db_path = "./data/dataset.sqlite3"
-if not os.path.exists(db_path):
-    os.makedirs(db_path)
+dir_name = os.path.dirname(db_path)
+if not os.path.exists(dir_name):
+    os.makedirs(dir_name)
+
 db = SqliteDatabase(db_path)
 
 
@@ -12,10 +14,11 @@ class StockCandleData(Model):
     symbol = CharField()
     timestamp = CharField()
 
-    open_price = FloatField()
-    high_price = FloatField()
-    low_price = FloatField()
-    close_price = FloatField()
+    open = FloatField()
+    high = FloatField()
+    low = FloatField()
+    close = FloatField()
+    volume = FloatField()
 
     class Meta:
         database = db

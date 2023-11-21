@@ -61,10 +61,11 @@ class AlpacaScraper:
             candle = StockCandleData(
                 symbol=symbol,
                 timestamp=bar["t"],
-                open_price=bar["o"],
-                high_price=bar["h"],
-                low_price=bar["l"],
-                close_price=bar["c"],
+                open=bar["o"],
+                high=bar["h"],
+                low=bar["l"],
+                close=bar["c"],
+                volume=bar["v"],
             )
             models.append(candle)
 
