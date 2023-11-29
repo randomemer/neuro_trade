@@ -30,24 +30,21 @@ def create_dataloaders(
     data: pd.DataFrame, seq_length: int, batch_size: int, test_size: float
 ):
     df = prepare_df(data)
-    print(df.index.unique())
+    columns = ["open", "high", "low", "close", "volume"]
+    print("Cols", columns)
 
     # Normalize data
     scaler = MinMaxScaler()
-    normalized_data = scaler.fit_transform(
-        df[["open", "high", "low", "close", "volume"]]
-    )
-    normalized_df = pd.DataFrame(
-        normalized_data, columns=[["open", "high", "low", "close", "volume"]]
-    )
+    normalized_data = scaler.fit_transform(df[columns])
+    normalized_df = pd.DataFrame(normalized_data, columns=columns)
 
     split = int(len(data) * (1 - test_size))
 
-    train_df = normalized_df.loc[0 : split - 1]
-    test_df = normalized_df.loc[split:]
+    train_data = normalized_df.loc[0 : split - 1].to_numpy()
+    test_data = normalized_df.loc[split:].to_numpy()
 
-    train_dataset = StockDataset(train_df, seq_length)
-    test_dataset = StockDataset(test_df, seq_length)
+    train_dataset = StockDataset(train_data, seq_length)
+    test_dataset = StockDataset(test_data, seq_length)
 
     train_dataloader = DataLoader(
         train_dataset,
